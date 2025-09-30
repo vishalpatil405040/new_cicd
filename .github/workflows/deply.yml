@@ -19,17 +19,18 @@ jobs:
         echo "${{ secrets.EC2_KEY }}" > ~/.ssh/new_cicd.pem
         chmod 600 ~/.ssh/new_cicd.pem
 
+    - name: Copy project files to EC2
+      run: |
+        rsync -avz --exclude '.git' --exclude '.github' \
+        -e "ssh -o StrictHostKeyChecking=no -i ~/.ssh/new_cicd.pem" \
+        ./ ec2-user@${{ secrets.EC2_HOST }}:~/todo_project
+
     - name: Deploy & Build Docker on EC2
       run: |
         ssh -o StrictHostKeyChecking=no -i ~/.ssh/new_cicd.pem ec2-user@${{ secrets.EC2_HOST }} << 'EOF'
-          # Navigate to project folder (create if not exists)
-          mkdir -p ~/todo_project
-          
+          cd ~/todo_project
 
-          # Copy project files from GitHub runner
-          rsync -avz --exclude '.git' --exclude '.github' ./ ec2-user@${{ secrets.EC2_HOST }}:~/todo_project
-
-          # Build Docker image on EC2
+          # Build Docker image
           docker build -t todo_project:latest .
 
           # Stop old container if exists
