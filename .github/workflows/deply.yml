@@ -1,0 +1,46 @@
+name: Django CI/CD with Docker on EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Save EC2 Private Key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.EC2_KEY }}" > ~/.ssh/new_cicd.pem
+        chmod 600 ~/.ssh/new_cicd.pem
+
+    - name: Build Docker image
+      run: |
+        docker build -t todo_list:latest .
+
+    - name: Save Docker image as tar
+      run: |
+        docker save todo_list:latest > todo_list.tar
+
+    - name: Copy image to EC2
+      run: |
+        scp -o StrictHostKeyChecking=no -i ~/.ssh/new_cicd.pem todo_list.tar ec2-user@${{ secrets.EC2_HOST }}:~/todo_list.tar
+
+    - name: Run Docker container on EC2
+      run: |
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/new_cicd.pem ec2-user@${{ secrets.EC2_HOST }} << 'EOF'
+          # Load image
+          docker load < ~/todo_list.tar
+
+          # Stop and remove old container
+          # docker stop django-app || true
+          # docker rm django-app || true
+
+          # Run new container
+          docker run -d -p 8000:8000 --name django-app todo_list:latest
+        EOF
