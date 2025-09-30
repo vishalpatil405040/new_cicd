@@ -1,46 +1,51 @@
-name: Django CI/CD to EC2
+name: CI/CD to EC2
 
 on:
   push:
     branches:
-      - main
+      - main   # Run only when you push to main branch
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Save EC2 Private Key
-      run: |
-        mkdir -p ~/.ssh
-        echo "${{ secrets.EC2_KEY }}" > ~/.ssh/new_cicd.pem
-        chmod 600 ~/.ssh/new_cicd.pem
-        
-    - name: Copy, Deploy & Build Docker on EC2
-      run: |
-        # Copy project files from GitHub runner to EC2
-        rsync -avz --exclude '.git' --exclude '.github' \
-          -e "ssh -o StrictHostKeyChecking=no -i ~/.ssh/new_cicd.pem" \
-          ./ ec2-user@${{ secrets.EC2_HOST }}:~/todo_project
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
 
-        # Now SSH into EC2 and build/run Docker
-        ssh -o StrictHostKeyChecking=no -i ~/.ssh/new_cicd.pem ec2-user@${{ secrets.EC2_HOST }} << 'EOF'
-          cd ~/todo_project
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password --region us-east-1 \
+          | docker login --username AWS --password-stdin 983915441388.dkr.ecr.us-east-1.amazonaws.com
 
-          # Build Docker image
-          sudo docker build -t todo_project:latest .
+      - name: Build, tag, and push image to ECR
+        run: |
+          docker build -t todo_app .
+          docker tag todo_app:latest 983915441388.dkr.ecr.us-east-1.amazonaws.com/todo_app:latest
+          docker push 983915441388.dkr.ecr.us-east-1.amazonaws.com/todo_app:latest
 
-          # Stop old container if exists
-          sudo docker stop django-app || true
-          sudo docker rm django-app || true
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
 
-          # Run new container
-          sudo docker run -d -p 8000:8000 --name django-app todo_project:latest
-
-          # Show running containers
-          sudo docker ps
-        EOF
-
+    steps:
+      - name: Deploy on EC2
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            aws ecr get-login-password --region us-east-1 \
+            | docker login --username AWS --password-stdin 983915441388.dkr.ecr.us-east-1.amazonaws.com
+            docker pull 983915441388.dkr.ecr.us-east-1.amazonaws.com/todo_app:latest
+            docker stop todo_app || true
+            docker rm todo_app || true
+            docker run -d -p 8000:8000 --name todo_app 983915441388.dkr.ecr.us-east-1.amazonaws.com/todo_app:latest
