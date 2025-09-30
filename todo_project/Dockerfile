@@ -15,5 +15,5 @@ COPY . .
 # Expose Django port
 EXPOSE 8000
 
-# Run server
+# Run server 
 CMD ["gunicorn", "todo_project.wsgi:application", "--bind", "0.0.0.0:8000"]
