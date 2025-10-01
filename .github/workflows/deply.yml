@@ -45,6 +45,6 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/todo_app:latest
-            docker stop todo_app || true
-            docker rm todo_app || true
-            docker run -d -p 8000:8000 --name todo_app ${{ secrets.DOCKERHUB_USERNAME }}/todo_app:latest
+            # docker stop todo_app || true
+            # docker rm todo_app || true
+            # docker run -d -p 8000:8000 --name todo_app ${{ secrets.DOCKERHUB_USERNAME }}/todo_app:latest
