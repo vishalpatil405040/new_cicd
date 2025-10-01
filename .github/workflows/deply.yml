@@ -39,7 +39,7 @@ jobs:
       # 6. SSH to EC2 and deploy the container
       - name: Deploy on EC2
         uses: appleboy/ssh-action@v0.1.10
-        with:
+        with: 
           host: ${{ secrets.EC2_HOST }}
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
